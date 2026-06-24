@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>アンケートログイン処理中...</title>
+    <!-- LIFF SDK の読み込み -->
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif;
+            background-color: #f7f9fc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #005087; /* ブランドブルー */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        p {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #005087;
+        }
+        #error-msg {
+            color: red;
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="loader" id="loading-spinner"></div>
+    <p id="status-text">ユーザー情報を取得中...</p>
+    <div id="error-msg"></div>
+
+    <script>
+        // ==============================================================
+        // ★ 設定項目：以下の2つの値を必ずご自身の環境に合わせて変更してください
+        // ==============================================================
+        
+        // 1. LIFF ID (LINE Developersコンソールで発行されたID)
+        const LIFF_ID = "YOUR_LIFF_ID_HERE"; // 例: "1234567890-abcdefgh"
+        
+        // 2. GAS WebアプリのURL (Code.gsをデプロイして取得したURL)
+        const GAS_URL = "https://script.google.com/a/wasedazemi.com/macros/s/AKfycbwZ7j39afZQxw2NCvaUbLEpCccze0GJupUAhEv7sW0QpOaTIKakRDfLX2T1qG_WtRNO5g/exec"; 
+
+        // ==============================================================
+
+        // エラー表示用のヘルパー関数
+        function showError(message) {
+            document.getElementById('loading-spinner').style.display = 'none';
+            document.getElementById('status-text').style.display = 'none';
+            const errorDiv = document.getElementById('error-msg');
+            errorDiv.style.display = 'block';
+            errorDiv.innerHTML = message;
+        }
+
+        // LIFFの初期化と処理
+        async function initializeLiff() {
+            try {
+                await liff.init({ liffId: LIFF_ID });
+
+                // LINE内で開かれていない、または未ログインの場合はログインを促す
+                if (!liff.isLoggedIn()) {
+                    liff.login();
+                    return; // login()が呼ばれると画面遷移するため、以降の処理は不要
+                }
+
+                // プロフィールを取得してLINE ID(userId)を確保
+                const profile = await liff.getProfile();
+                const lineId = profile.userId;
+
+                // 現在のURLから 'campus' パラメータを取得
+                // （配信するURL例： https://liff.line.me/LIFF_ID?campus=oota ）
+                const urlParams = new URLSearchParams(window.location.search);
+                const campus = urlParams.get('campus');
+
+                if (!campus) {
+                    showError("校舎パラメータ（campus）が見つかりません。<br>配信されたURLが正しいか確認してください。");
+                    return;
+                }
+
+                // パラメータを付けてGASへリダイレクト
+                document.getElementById('status-text').innerText = "アンケート画面へ移動します...";
+                
+                // window.location.replace を使うことで、ブラウザの「戻る」ボタンで
+                // このリダイレクト画面に戻って無限ループに陥るのを防ぎます。
+                const redirectUrl = `${GAS_URL}?campus=${encodeURIComponent(campus)}&lineId=${encodeURIComponent(lineId)}`;
+                window.location.replace(redirectUrl);
+
+            } catch (err) {
+                console.error("LIFF Initialization failed", err);
+                showError("初期化に失敗しました。<br>LINEアプリを再起動してもう一度お試しください。");
+            }
+        }
+
+        // ページ読み込み時に実行
+        window.onload = initializeLiff;
+    </script>
+</body>
+</html>
